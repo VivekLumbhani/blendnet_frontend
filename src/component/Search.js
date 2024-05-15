@@ -27,7 +27,7 @@ const SearchComp = () => {
       try {
         setLoading(true);
         const response = await axios.post('http://127.0.0.1:8000/searchStock', {
-          keyword: symbol,
+          keyword: symbol.toUpperCase(),
         });
         setSearchResults(response.data.bestMatches);
         setLoading(false);
