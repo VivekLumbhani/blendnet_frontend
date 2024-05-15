@@ -6,7 +6,7 @@ import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid';
 import Typography from '@mui/material/Typography';
 import Container from '@mui/material/Container';
-import { NotificationAdd, SearchOutlined, TramSharp } from '@mui/icons-material';
+import { DeleteForeverOutlined, NotificationAdd, SearchOutlined, TramSharp } from '@mui/icons-material';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import axios from 'axios';
 import NavBar from './NavBar';
@@ -32,46 +32,53 @@ const WatchList = () => {
       const uniqueId = localStorage.getItem("userid");
       console.log("uniqueId " + uniqueId);
   
-      // Step 1: Fetch symbols from the backend
+      
       const response = await axios.post('http://127.0.0.1:8000/fetchWatchList', {
         uniqueId: uniqueId,
       });
       console.log("symbols data: " + JSON.stringify(response.data));
   
-      // Extract symbols from the response
+      
       const symbols = response.data.map(item => item.symbol);
-  
-      // Step 2: Fetch details for each symbol
+      console.log("symbols: ", symbols); 
+      
       const detailsPromises = symbols.map(async symbol => {
-        // Fetch details for the symbol
-        const detailsResponse = await axios.post('http://127.0.0.1:8000/fetchSingleStock', {
-          name: symbol
+      
+        const searchResponse = await axios.post('http://127.0.0.1:8000/searchStock', {
+          keyword: symbol
         });
+        console.log("search response for symbol ", symbol, ": ", searchResponse.data); 
+        
+        
+        const exactMatch = searchResponse.data.bestMatches.find(match => match["1. symbol"] === symbol);
   
-        // Extract Meta Data and the first object of Time Series (5min) if it exists
-        const responseData = detailsResponse.data.response;
-        const metaData = responseData["Meta Data"];
-        const timeSeriesData = responseData["Time Series (5min)"];
-        const firstTimeSeriesKey = timeSeriesData ? Object.keys(timeSeriesData)[0] : null;
-        const firstTimeSeriesData = firstTimeSeriesKey ? timeSeriesData[firstTimeSeriesKey] : null;
-  
-        // Check if both metaData and timeSeriesData are defined before proceeding
-        if (metaData && firstTimeSeriesData) {
-          // Return the extracted data
-          return { metaData, timeSeries: { [firstTimeSeriesKey]: firstTimeSeriesData } };
+        if (exactMatch) {
+        
+          return {
+            metaData: {
+              "Symbol": exactMatch["1. symbol"],
+              "Name": exactMatch["2. name"],
+              "Type": exactMatch["3. type"],
+              "Region": exactMatch["4. region"] || "",
+              "Market Open": exactMatch["5. marketOpen"] || "",
+              "Market Close": exactMatch["6. marketClose"] || "",
+              "Currency": exactMatch["8. currency"] || "",
+            },
+            timeSeries: null 
+          };
         } else {
-          return null; // Return null if either metaData or timeSeriesData is not defined
+          return null; 
         }
       });
   
-      // Wait for all details requests to complete
+      
       const detailsData = await Promise.all(detailsPromises);
       console.log("details data: ", detailsData);
   
-      // Filter out any null values from the detailsData array
+      
       const filteredDetailsData = detailsData.filter(data => data !== null);
   
-      // Set the filtered details to the WatchList state
+      
       setWatchList(filteredDetailsData);
   
       setLoading(false);
@@ -82,21 +89,26 @@ const WatchList = () => {
   };
   
   
+  
+  
 
   const deleteFromWatchList = async (symbol) => {
+
     console.log("symbol selected " + symbol);
     var userid = localStorage.getItem('userid');
 
     console.log("user id " + userid);
     // http://127.0.0.1:8000/addToWatchList
     try {
-      const response = await axios.post('http://127.0.0.1:8000/addToWatchList', {
-        symbol: symbol,
-        uniqueId: userid,
+      const response = await axios.delete('http://127.0.0.1:8000/deleteFromWatchList', {
+  data: {
+    symbol: symbol,
+    uniqueId: userid,
+  }
+});
 
-      });
 
-      alert("set success " + response.data)
+      alert("set success " + JSON.stringify(response.data))
 
 
 
@@ -124,37 +136,47 @@ const WatchList = () => {
           >
             <NavBar />
 
-
-{WatchList.length > 0 && (
+            {WatchList.length > 0 && (
   <Box mt={3} width="100%">
     <Typography variant="h6" gutterBottom>
       Search Results
     </Typography>
-    <table>
+    <table border="1">
       <thead>
         <tr>
           <th>Symbol</th>
-          {/* Add other table headers here if needed */}
+          <th>Name</th>
+          <th>Type</th>
+          <th>Region</th>
+          <th>Market Open</th>
+          <th>Market Close</th>
+          <th>Currency</th>
           <th>Add To Watchlist</th>
         </tr>
       </thead>
       <tbody>
         {WatchList.map((result, index) => {
-          // Logging result object outside JSX
-          console.log("result is ", JSON.stringify(result));
+
+console.log("result is ", JSON.stringify(result));
 
           return (
             <tr key={index}>
-              <td>{result.bestMatches.symbol}</td>
-              {/* You can add other columns if needed */}
+              <td>{result.metaData["Symbol"]}</td>
+              <td>{result.metaData["Name"]}</td>
+              <td>{result.metaData["Type"]}</td>
+              <td>{result.metaData["Region"]}</td>
+              <td>{result.metaData["Market Open"]}</td>
+              <td>{result.metaData["Market Close"]}</td>
+              <td>{result.metaData["Currency"]}</td>
+              {/* Add the button for adding to watchlist */}
               <td>
                 <Button
-                  onClick={() => deleteFromWatchList(result.symbol)}
+                  onClick={() => deleteFromWatchList(result.metaData["Symbol"])}
                   component="label"
                   role={undefined}
                   variant="contained"
                   tabIndex={-1}
-                  startIcon={<TramSharp />}
+                  startIcon={<DeleteForeverOutlined />}
                 />
               </td>
             </tr>
@@ -164,6 +186,7 @@ const WatchList = () => {
     </table>
   </Box>
 )}
+
 
           </Box>
         </Container>
